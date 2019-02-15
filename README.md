@@ -10,4 +10,10 @@ Resources for TF Datasets: ['TF Datasets'](https://github.com/tensorflow/dataset
 
 Requires TF 1.12 or later
 
+## Usage example
+
+For simple usage run 'python classifier.py'
+
+For Tensorboard and everything run './trainNmonitor.sh' and point your browser to localhost:12345
+
 

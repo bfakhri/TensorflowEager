@@ -9,8 +9,6 @@ tf.enable_eager_execution()
 import tensorflow_datasets as tfds
 
 # Constants to eventually parameterise
-LEARN_RATE = 1e-4
-BATCH_SIZE = 2048
 LOGDIR = './logs'
 
 # Activation function to use for layers
@@ -85,7 +83,7 @@ NUM_CLASSES = 10
 class Model:
     ' Simple Image Classification Model (defined by CNN) ' 
 
-    def __init__(self):
+    def __init__(self, learn_rate=1e-4):
         ' Initializes model parameters and optimizer ' 
 
         # Stores model params
@@ -115,7 +113,7 @@ class Model:
         self.vars.append(self.b_fc_up2)
 
         # Our Optimizer
-        self.optimizer = tf.train.AdamOptimizer(LEARN_RATE)
+        self.optimizer = tf.train.AdamOptimizer(learn_rate)
 
 
     def crunch(self, x_input):

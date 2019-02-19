@@ -83,8 +83,12 @@ SIZE_Y = 28
 NUM_CLASSES = 10 
 
 class Model:
+    ' Simple Image Classification Model (defined by CNN) ' 
+
     def __init__(self):
-        # Create the model parameters
+        ' Initializes model parameters and optimizer ' 
+
+        # Stores model params
         self.vars = []
         ## Conv Layers
         ds_chans = img_shape[2]
@@ -115,7 +119,7 @@ class Model:
 
 
     def crunch(self, x_input):
-        ' Runs the model to output '
+        ' Generates outputs (predictions) from inputs to the model '
 
         with tf.name_scope('MainGraph'):
             with tf.name_scope('Inputs'):
@@ -142,6 +146,7 @@ class Model:
     def learn(self, x_input, labels):
         ' Learns from the batch ' 
 
+        # Track gradients
         with tf.GradientTape() as tape:
             output = self.crunch(x_input)
             with tf.name_scope('Generation_Loss'):
@@ -154,37 +159,50 @@ class Model:
                 global_step.assign_add(1)
                 return output, cross_entropy 
 
-    def calc_accuracy(self, predictions, labels):
-        ' Calculates accuracy as a percentage '
+    def calc_accuracy(self, predictions, labels, is_val=False):
+        ' Calculates accuracy as a percentage and records it for TB '
 
         correct_prediction = tf.equal(tf.argmax(labels,1), tf.argmax(predictions,1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        tf.contrib.summary.scalar('Testing Accuracy', accuracy)
+        if(is_val):
+            tf.contrib.summary.scalar('Validation Acc', accuracy)
+        else:
+            tf.contrib.summary.scalar('Training Acc', accuracy)
         return accuracy  
 
     def validate(self, x_input, labels):
         ' Performs an accuracy assessment without learning from the batch ' 
         
         output = self.crunch(x_input)
-        val_acc = self.calc_accuracy(output, labels)
-        tf.contrib.summary.scalar('Validation Accuracy', val_acc)
+        val_acc = self.calc_accuracy(output, labels, is_val=True)
         return val_acc
 
 
 
+# Creates a classifier model
 model = Model()
+
+# Preparing datasets (training and validation)
+# Batch size of 1024 the repeats when iterated through
 ds_train = ds_train.batch(1024).repeat()
 ds_test = ds_test.batch(1024).repeat()
-for idx,batch in enumerate(ds_train.take(5000)):
+
+# Converts validation set into an iterator so we can iterate through it
+ds_test_iter = iter(ds_test)
+
+# Perform the training loop (forever)
+for idx,batch in enumerate(ds_train):
+    # Prepare training inputs
     x_inputs = tf.math.divide(tf.cast(batch['image'], tf.float32), tf.constant(255.0, dtype=tf.float32))
     y_labels = tf.one_hot(batch['label'], depth=NUM_CLASSES)
+    # Prepare validation inputs
+    val_batch = next(ds_test_iter)
+    val_x_inputs = tf.math.divide(tf.cast(val_batch['image'], tf.float32), tf.constant(255.0, dtype=tf.float32))
+    val_y_labels = tf.one_hot(val_batch['label'], depth=NUM_CLASSES)
+    # Train and validate
     with tf.contrib.summary.record_summaries_every_n_global_steps(100):
         preds, loss = model.learn(x_inputs, y_labels) 
-        acc = model.calc_accuracy(preds, y_labels)
-        #val_acc = model.calc_accuracy(preds, y_labels)
-        print('idx: ', idx, 'Loss: ', loss.numpy(), 'Accuracy: ', acc.numpy()*100)
-
-
-
-
+        train_acc = model.calc_accuracy(preds, y_labels)
+        val_acc = model.validate(val_x_inputs, val_y_labels)
+        print('idx: ', idx, 'Loss: ', loss.numpy(), 'TrainAcc: ', train_acc.numpy()*100, '\tValAcc: ', val_acc.numpy()*100)
 

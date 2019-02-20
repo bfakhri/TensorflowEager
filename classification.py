@@ -28,7 +28,7 @@ def bias_variable(shape, name='B'):
     return tf.Variable(initial, name=name)
 
 def conv2d(x, W, name='conv'):
-    ''' Performs a 2d convolution '''
+    ' Performs a 2d convolution '
     with tf.name_scope(name):
         return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
@@ -175,8 +175,8 @@ class Model:
 # Get Data
 # Construct a tf.data.Dataset
 #ds_name = 'mnist'
-#ds_name = 'cifar10'
-ds_name = 'cifar100'
+ds_name = 'cifar10'
+#ds_name = 'cifar100'
 #ds_name = 'omniglot'
 (ds_train, ds_test), ds_info = tfds.load(name=ds_name, split=['train', 'test'], with_info=True)
 img_shape = tf.TensorShape(ds_info.features['image'].shape)

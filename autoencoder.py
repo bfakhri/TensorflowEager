@@ -17,19 +17,6 @@ act_func = tf.nn.tanh
 # Enable or disable GPU
 SESS_CONFIG = tf.ConfigProto(device_count = {'GPU': 1})
 
-# Define variable functions
-def weight_variable(shape, name='W'):
-    initial = tf.truncated_normal(shape, stddev=0.1)
-    return tf.Variable(initial, name=name)
-
-def bias_variable(shape, name='B'):
-    initial = tf.constant(0.1, shape=shape)
-    return tf.Variable(initial, name=name)
-
-def conv2d(x, W, name='conv'):
-    ' Performs a 2d convolution '
-    with tf.name_scope(name):
-        return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
 # Max-Pooling Function - Pooling explained here: 
 # http://ufldl.stanford.edu/tutorial/supervised/Pooling/
@@ -37,22 +24,6 @@ def max_pool_2x2(x, name='max_pool'):
     with tf.name_scope(name):
         return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
-# Define a Convolutional Layer 
-def conv_layer(x, fan_in, fan_out, name='convl'):
-    with tf.name_scope(name):
-        # Create Weight Variables
-        W = weight_variable([5, 5, fan_in, fan_out], name='W')
-        B = bias_variable([fan_out], name='B')
-        # Convolve the input using the weights
-        conv = conv2d(x, W)
-        # Push input+bias through activation function
-        activ = tf.nn.relu(conv + B)
-        # Create histograms for visualization
-        tf.contrib.summary.histogram('Weights', W)
-        tf.contrib.summary.histogram('Biases', B)
-        tf.contrib.summary.histogram('Activations', activ) 
-        # MaxPool Output
-        return max_pool_2x2(activ)
 
 def conver(x, w, b, name='convll'):
     with tf.name_scope(name):
@@ -67,68 +38,90 @@ def conver(x, w, b, name='convll'):
         # MaxPool Output
         return max_pool_2x2(activ)
 
-
-
 class Model:
     ' Simple Image Classification Model (defined by CNN) ' 
 
-    def __init__(self, input_shape, learn_rate=1e-4):
+    def __init__(self, input_shape, num_layers=3, layer_width=64, bottleneck_chans = 4, learn_rate=1e-4):
         ' Initializes model parameters and optimizer ' 
+        ' Assumes an input shape of [height, width, channels]'
 
         # Stores model params
         self.vars = []
-
-        ## Conv Layers
+        self.layers = []
         self.input_shape = input_shape
-        next_size = int((input_shape[0]+1)/2)
-        #fn_out = 32*self.input_shape[2]
-        fn_out = 4*self.input_shape[2]
-        self.conv1_w = weight_variable([5, 5, self.input_shape[2], fn_out], name='W')
-        self.conv1_b = bias_variable([fn_out], name='B')
-        self.vars.append(self.conv1_w)
-        self.vars.append(self.conv1_b)
-        fn_in = fn_out
-        #fn_out = 2*fn_in 
-        fn_out = fn_in 
-        next_size = int((next_size+1)/2)
-        self.conv2_w = weight_variable([5, 5, fn_in, fn_out], name='W')
-        self.conv2_b = bias_variable([fn_out], name='B')
-        self.vars.append(self.conv2_w)
-        self.vars.append(self.conv2_b)
+        
+        # Down-sampling Layers
+        for l in range(num_layers):
+            # Make the layers
+            # Halve width/height at every layer
+            # Make kernel of size: [filter_height, filter_width, in_channels, out_channels]
 
-        ## FC Upscaling Layers
-        self.FC1_Size = tf.TensorShape(input_shape).num_elements()
-        self.W_fc_up1 = weight_variable([next_size*next_size*fn_out, self.FC1_Size])
-        self.b_fc_up1 = bias_variable([self.FC1_Size])
-        self.vars.append(self.W_fc_up1)
-        self.vars.append(self.b_fc_up1)
+            # First layer
+            if(l == 0):
+                in_chans = input_shape[2]
+                out_chans = layer_width
+                cur_shape = [1,] + input_shape
+            # Last Layer
+            elif(l == num_layers-1):
+                in_chans = out_chans
+                out_chans = bottleneck_chans 
+            # Middle layers
+            else:
+                in_chans = out_chans
+                out_chans = layer_width 
+            
+            f_height = 5
+            f_width = 5
+
+            layer = tf.layers.Conv2D(out_chans, (f_height, f_width), strides=[1,1], padding='valid', activation=tf.nn.relu, kernel_initializer=tf.initializers.random_normal, bias_initializer=tf.initializers.random_normal, name='Conv'+str(l))
+            layer.build(cur_shape)
+            cur_shape = layer.compute_output_shape(cur_shape)
+            self.layers.append(layer)
+
+
+        # Up-sampling Layers
+        for l in reversed(range(num_layers)):
+            # First layer
+            if(l == num_layers-1):
+                in_chans = bottleneck_chans
+                out_chans = layer_width
+            # Last Layer
+            elif(l == 0):
+                in_chans = out_chans
+                out_chans = input_shape[2]
+            # Middle layers
+            else:
+                in_chans = out_chans
+                out_chans = layer_width 
+            
+            f_height = 5
+            f_width = 5
+
+            layer = tf.layers.Conv2DTranspose(out_chans, (f_height, f_width), strides=[1,1], padding='valid', activation=tf.nn.relu, kernel_initializer=tf.initializers.random_normal, bias_initializer=tf.initializers.random_normal, name='ConvTP'+str(l))
+            layer.build(cur_shape)
+            cur_shape = layer.compute_output_shape(cur_shape)
+            self.layers.append(layer)
 
         # Our Optimizer
         self.optimizer = tf.train.AdamOptimizer(learn_rate)
+
+        # Grab all variables
+        for l in self.layers:
+            self.vars.extend(l.weights)
 
 
     def crunch(self, x_input):
         ' Generates outputs (predictions) from inputs to the model '
 
         with tf.name_scope('MainGraph'):
-            with tf.name_scope('Inputs'):
-                # Reshape X to make it into a 2D image
-                x_image = tf.reshape(x_input, [-1,]+self.input_shape)
-                tf.contrib.summary.image('original_image', x_image, max_images=3)
-            # FC Encoder Layers
-            with tf.name_scope('Convs'):
-                conv1 = conver(x_image, self.conv1_w, self.conv1_b, name='Conv1') 
-                conv2 = conver(conv1, self.conv2_w, self.conv2_b, name='Conv2') 
-                conv_sig = tf.sigmoid(conv2)
-
-            with tf.name_scope('encoder_latent'):
-                z = tf.layers.flatten(conv_sig)
-                tf.contrib.summary.histogram('latent_z', z)
-
-            with tf.name_scope('FC2'):
-                x_hat = tf.nn.sigmoid(tf.matmul(z, self.W_fc_up1) + self.b_fc_up1)
-
-            return x_hat 
+            for l in range(len(self.layers)):
+                if(l == 0):
+                    h = self.layers[0](x_input)
+                else:
+                    h = self.layers[l](h)
+            
+            x_hat = tf.sigmoid(h)
+            return x_hat
 
         
     def learn(self, x_input):
@@ -136,15 +129,21 @@ class Model:
 
         # Track gradients
         with tf.GradientTape() as tape:
+            tape.watch(x_input)
             output = self.crunch(x_input)
-            output_img = tf.reshape(output, [-1]+self.input_shape)
-            tf.contrib.summary.image('Reconstructed Image', output_img, max_images=3)
+            tf.contrib.summary.image('Reconstructed Image', output, max_images=3)
             with tf.name_scope('Generation_Loss'):
-                reconstruction_loss = tf.losses.mean_squared_error(labels=x_input, predictions=output_img)
+                reconstruction_loss = tf.losses.mean_squared_error(labels=x_input, predictions=output)
                 tf.contrib.summary.scalar('Recon Loss', reconstruction_loss)
 
                 grads = tape.gradient(reconstruction_loss, self.vars)
+                #grads = tape.gradient(reconstruction_loss, self.layers[0].weights)
+                #sss = 0
+                #for g in grads:
+                #    sss += tf.math.count_nonzero(g)
+                #print('Nonzero grads: ', sss)
                 self.optimizer.apply_gradients(zip(grads, self.vars))
+                #self.optimizer.apply_gradients(zip(grads, self.layers[0].weights))
                 global_step.assign_add(1)
                 return output, reconstruction_loss 
 
@@ -158,6 +157,10 @@ class Model:
         concat = tf.concat([x_input_rs, output_rs], axis=1)
         concat_img = tf.reshape(concat, [-1, self.input_shape[0]*2, self.input_shape[1], self.input_shape[2]])
         tf.contrib.summary.image('Validation Pair', concat_img, max_images=3)
+
+        for l in self.layers:
+            tf.contrib.summary.histogram('Weights_'+l.name, l.weights[0])
+            tf.contrib.summary.histogram('Biases_'+l.name, l.weights[1])
 
 # Get Data
 # Construct a tf.data.Dataset
@@ -180,8 +183,8 @@ model = Model(img_shape.as_list())
 
 # Preparing datasets (training and validation)
 # Batch size of 1024 the repeats when iterated through
-ds_train = ds_train.batch(4).repeat()
-ds_test = ds_test.batch(4).repeat()
+ds_train = ds_train.batch(256).repeat()
+ds_test = ds_test.batch(256).repeat()
 
 # Converts validation set into an iterator so we can iterate through it
 ds_test_iter = iter(ds_test)
@@ -194,7 +197,7 @@ for idx,batch in enumerate(ds_train):
     val_batch = next(ds_test_iter)
     val_x_inputs = tf.math.divide(tf.cast(val_batch['image'], tf.float32), tf.constant(255.0, dtype=tf.float32))
     # Train and validate
-    with tf.contrib.summary.record_summaries_every_n_global_steps(100):
+    with tf.contrib.summary.record_summaries_every_n_global_steps(10):
         preds, loss = model.learn(x_inputs) 
         print('idx: ', idx, 'Loss: ', loss.numpy())
         model.validate(val_x_inputs)

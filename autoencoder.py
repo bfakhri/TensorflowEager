@@ -25,23 +25,10 @@ def max_pool_2x2(x, name='max_pool'):
         return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
 
-def conver(x, w, b, name='convll'):
-    with tf.name_scope(name):
-        # Convolve the input using the weights
-        conv = conv2d(x, w)
-        # Push input+bias through activation function
-        activ = tf.nn.relu(conv + b)
-        # Create histograms for visualization
-        tf.contrib.summary.histogram('Weights', w)
-        tf.contrib.summary.histogram('Biases', b)
-        tf.contrib.summary.histogram('Activations', activ) 
-        # MaxPool Output
-        return max_pool_2x2(activ)
-
 class Model:
     ' Simple Image Classification Model (defined by CNN) ' 
 
-    def __init__(self, input_shape, num_layers=3, layer_width=64, bottleneck_chans = 4, learn_rate=1e-4):
+    def __init__(self, input_shape, num_layers=4, activation=tf.nn.relu, layer_width=64, bottleneck_chans = 4, learn_rate=1e-4):
         ' Initializes model parameters and optimizer ' 
         ' Assumes an input shape of [height, width, channels]'
 
@@ -73,20 +60,20 @@ class Model:
             f_height = 5
             f_width = 5
 
-            layer = tf.layers.Conv2D(out_chans, (f_height, f_width), strides=[1,1], padding='valid', activation=tf.nn.relu, kernel_initializer=tf.initializers.random_normal, bias_initializer=tf.initializers.random_normal, name='Conv'+str(l))
+            layer = tf.layers.Conv2D(out_chans, (f_height, f_width), strides=[1,1], padding='valid', activation=activation, kernel_initializer=tf.initializers.random_normal, bias_initializer=tf.initializers.random_normal, name='Conv'+str(l))
             layer.build(cur_shape)
             cur_shape = layer.compute_output_shape(cur_shape)
             self.layers.append(layer)
 
 
         # Up-sampling Layers
-        for l in reversed(range(num_layers)):
+        for l in range(num_layers):
             # First layer
-            if(l == num_layers-1):
+            if(l == 0):
                 in_chans = bottleneck_chans
                 out_chans = layer_width
             # Last Layer
-            elif(l == 0):
+            elif(l == num_layers-1):
                 in_chans = out_chans
                 out_chans = input_shape[2]
             # Middle layers
@@ -97,9 +84,10 @@ class Model:
             f_height = 5
             f_width = 5
 
-            layer = tf.layers.Conv2DTranspose(out_chans, (f_height, f_width), strides=[1,1], padding='valid', activation=tf.nn.relu, kernel_initializer=tf.initializers.random_normal, bias_initializer=tf.initializers.random_normal, name='ConvTP'+str(l))
+            layer = tf.layers.Conv2DTranspose(out_chans, (f_height, f_width), strides=[1,1], padding='valid', activation=activation, kernel_initializer=tf.initializers.random_normal, bias_initializer=tf.initializers.random_normal, name='ConvTP'+str(l))
             layer.build(cur_shape)
             cur_shape = layer.compute_output_shape(cur_shape)
+            print('Building: ', layer.name, cur_shape)
             self.layers.append(layer)
 
         # Our Optimizer
@@ -117,10 +105,14 @@ class Model:
             for l in range(len(self.layers)):
                 if(l == 0):
                     h = self.layers[0](x_input)
+                    tf.contrib.summary.image(self.layers[l].name, h[:,:,:,:3], max_images=1) 
                 else:
                     h = self.layers[l](h)
+                    tf.contrib.summary.image(self.layers[l].name, h[:,:,:,:3], max_images=1) 
             
-            x_hat = tf.sigmoid(h)
+            #x_hat = tf.sigmoid(h)
+            #x_hat = h
+            x_hat = tf.sigmoid(tf.image.per_image_standardization(h))
             return x_hat
 
         

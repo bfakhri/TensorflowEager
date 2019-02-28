@@ -9,7 +9,8 @@ tf.enable_eager_execution()
 import tensorflow_datasets as tfds
 
 # Constants to eventually parameterise
-LOGDIR = './logs/autoencoder/'
+#LOGDIR = './logs/autoencoder/'
+LOGDIR = './logs/autoencoderfmn/'
 
 # Activation function to use for layers
 act_func = tf.nn.tanh
@@ -156,11 +157,12 @@ class Model:
 
 # Get Data
 # Construct a tf.data.Dataset
-ds_name = 'mnist'
+#ds_name = 'mnist'
 #ds_name = 'cifar10'
 #ds_name = 'cifar100'
 #ds_name = 'omniglot'
 #ds_name = 'celeb_a'
+ds_name = 'fashion_mnist'
 (ds_train, ds_test), ds_info = tfds.load(name=ds_name, split=['train', 'test'], with_info=True)
 img_shape = tf.TensorShape(ds_info.features['image'].shape)
 print('DS Shape: ')

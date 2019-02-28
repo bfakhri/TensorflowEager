@@ -7,7 +7,7 @@ tf.enable_eager_execution()
 import tensorflow_datasets as tfds
 
 # Constants to eventually parameterise
-LOGDIR = './logs/autoencoder/'
+LOGDIR = './logs/autoencoder_gg/'
 
 # Activation function to use for layers
 act_func = tf.nn.tanh
@@ -32,10 +32,6 @@ class Model:
         
         # Down-sampling Layers
         for l in range(num_layers):
-            # Make the layers
-            # Halve width/height at every layer
-            # Make kernel of size: [filter_height, filter_width, in_channels, out_channels]
-
             # First layer
             if(l == 0):
                 in_chans = input_shape[2]
@@ -58,7 +54,6 @@ class Model:
             cur_shape = layer.compute_output_shape(cur_shape)
             self.shape_list.append(cur_shape)
             self.layers.append(layer)
-
 
         # Up-sampling Layers
         for l in range(num_layers):
@@ -130,11 +125,6 @@ class Model:
                 tf.contrib.summary.scalar('Recon Loss', reconstruction_loss)
 
                 grads = tape.gradient(reconstruction_loss, self.vars)
-                #grads = tape.gradient(reconstruction_loss, self.layers[0].weights)
-                #sss = 0
-                #for g in grads:
-                #    sss += tf.math.count_nonzero(g)
-                #print('Nonzero grads: ', sss)
                 self.optimizer.apply_gradients(zip(grads, self.vars))
                 #self.optimizer.apply_gradients(zip(grads, self.layers[0].weights))
                 global_step.assign_add(1)

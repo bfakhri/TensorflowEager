@@ -1,5 +1,3 @@
-# Inspired by the TF Tutorial: https://www.tensorflow.org/get_started/mnist/pros
-
 import tensorflow as tf
 import numpy as np
 
@@ -9,21 +7,13 @@ tf.enable_eager_execution()
 import tensorflow_datasets as tfds
 
 # Constants to eventually parameterise
-#LOGDIR = './logs/autoencoder/'
-LOGDIR = './logs/autoencoderfmn/'
+LOGDIR = './logs/autoencoder/'
 
 # Activation function to use for layers
 act_func = tf.nn.tanh
 
 # Enable or disable GPU
 SESS_CONFIG = tf.ConfigProto(device_count = {'GPU': 1})
-
-
-# Max-Pooling Function - Pooling explained here: 
-# http://ufldl.stanford.edu/tutorial/supervised/Pooling/
-def max_pool_2x2(x, name='max_pool'):
-    with tf.name_scope(name):
-        return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
 
 class Model:
@@ -99,9 +89,14 @@ class Model:
 
         # Grab all variables
         for l in self.layers:
-            self.vars.extend(l.weights)
+            self.vars.extend(l.weights) 
         for idx,shape in enumerate(self.shape_list):
-            print('Layer ', str(idx), shape)
+            if(idx == 0):
+                out_shape = None
+            else:
+                out_shape = self.layers[idx-1].weights[0].shape
+
+            print('Layer: ', str(idx), shape, 'Weights: ', out_shape)
 
 
     def crunch(self, x_input):
@@ -182,8 +177,8 @@ model = Model(img_shape.as_list())
 
 # Preparing datasets (training and validation)
 # Batch size of 1024 the repeats when iterated through
-ds_train = ds_train.batch(256).repeat()
-ds_test = ds_test.batch(256).repeat()
+ds_train = ds_train.batch(64).repeat()
+ds_test = ds_test.batch(64).repeat()
 
 # Converts validation set into an iterator so we can iterate through it
 ds_test_iter = iter(ds_test)

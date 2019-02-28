@@ -37,6 +37,8 @@ class Model:
         self.vars = []
         self.layers = []
         self.input_shape = input_shape
+        self.shape_list = [] 
+        self.shape_list.append(input_shape)
         
         # Down-sampling Layers
         for l in range(num_layers):
@@ -64,6 +66,7 @@ class Model:
             layer = tf.layers.Conv2D(out_chans, (f_height, f_width), strides=[1,1], padding='valid', activation=activation, kernel_initializer=tf.initializers.random_normal, bias_initializer=tf.initializers.random_normal, name='Conv'+str(l))
             layer.build(cur_shape)
             cur_shape = layer.compute_output_shape(cur_shape)
+            self.shape_list.append(cur_shape)
             self.layers.append(layer)
 
 
@@ -88,7 +91,7 @@ class Model:
             layer = tf.layers.Conv2DTranspose(out_chans, (f_height, f_width), strides=[1,1], padding='valid', activation=activation, kernel_initializer=tf.initializers.random_normal, bias_initializer=tf.initializers.random_normal, name='ConvTP'+str(l))
             layer.build(cur_shape)
             cur_shape = layer.compute_output_shape(cur_shape)
-            print('Building: ', layer.name, cur_shape)
+            self.shape_list.append(cur_shape)
             self.layers.append(layer)
 
         # Our Optimizer
@@ -97,6 +100,8 @@ class Model:
         # Grab all variables
         for l in self.layers:
             self.vars.extend(l.weights)
+        for idx,shape in enumerate(self.shape_list):
+            print('Layer ', str(idx), shape)
 
 
     def crunch(self, x_input):
@@ -161,8 +166,8 @@ class Model:
 #ds_name = 'cifar10'
 #ds_name = 'cifar100'
 #ds_name = 'omniglot'
-#ds_name = 'celeb_a'
-ds_name = 'fashion_mnist'
+ds_name = 'celeb_a'
+#ds_name = 'fashion_mnist'
 (ds_train, ds_test), ds_info = tfds.load(name=ds_name, split=['train', 'test'], with_info=True)
 img_shape = tf.TensorShape(ds_info.features['image'].shape)
 print('DS Shape: ')
